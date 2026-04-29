@@ -13,8 +13,7 @@ export async function renderImageFileToCanvas(file, canvas) {
     w = Math.round(w * r);
     h = Math.round(h * r);
   }
-  canvas.style.width = '';
-  canvas.style.height = '';
+  // Don't touch canvas.style.width/height here — the app controls CSS sizing via zoom.
   const ctx = canvas.getContext('2d');
   canvas.width = w;
   canvas.height = h;

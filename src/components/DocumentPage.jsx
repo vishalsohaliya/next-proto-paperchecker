@@ -12,9 +12,12 @@ export default function DocumentPage({
   imageFile,
   onPageSize,
   bgCanvasRef,
+  rotation,
   children,
 }) {
   const localCanvasRef = useRef(null);
+  const onPageSizeRef = useRef(onPageSize);
+  onPageSizeRef.current = onPageSize;
 
   useLayoutEffect(() => {
     let cancelled = false;
@@ -23,11 +26,11 @@ export default function DocumentPage({
 
     const run = async () => {
       if (mode === 'pdf' && pdfDoc) {
-        const { width, height } = await renderPdfPageToCanvas(pdfDoc, pageIndex1, c);
-        if (!cancelled) onPageSize(width, height);
+        const { width, height } = await renderPdfPageToCanvas(pdfDoc, pageIndex1, c, rotation ?? 0);
+        if (!cancelled) onPageSizeRef.current?.(width, height);
       } else if (mode === 'image' && imageFile) {
         await renderImageFileToCanvas(imageFile, c);
-        if (!cancelled) onPageSize(c.width, c.height);
+        if (!cancelled) onPageSizeRef.current?.(c.width, c.height);
       }
     };
 
@@ -35,7 +38,7 @@ export default function DocumentPage({
     return () => {
       cancelled = true;
     };
-  }, [mode, pdfDoc, pageIndex1, imageFile, onPageSize]);
+  }, [mode, pdfDoc, pageIndex1, imageFile, rotation]);
 
   const setCanvasRef = (node) => {
     localCanvasRef.current = node;

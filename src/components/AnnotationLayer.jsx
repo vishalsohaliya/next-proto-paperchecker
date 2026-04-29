@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
-import { Canvas, PencilBrush, IText, Rect, Ellipse, FabricImage } from 'fabric';
+import { Canvas, PencilBrush, IText, Rect, Ellipse, FabricImage, Line } from 'fabric';
 
-const CROSSHAIR_TOOLS = ['text', 'stamp', 'rect', 'circle'];
+const CROSSHAIR_TOOLS = ['text', 'stamp', 'rect', 'circle', 'line', 'erase'];
 
 function hexToRgba(color, alpha) {
   if (color && color.startsWith('#') && color.length >= 7) {
@@ -101,7 +101,11 @@ const AnnotationLayer = forwardRef(function AnnotationLayer(
     // rectangle to render on top of the shape being drawn, creating a ghost
     // border offset from the actual shape stroke.
     canvas.selection = tool === 'select';
-    canvas.defaultCursor = CROSSHAIR_TOOLS.includes(tool) ? 'crosshair' : 'default';
+    canvas.defaultCursor = CROSSHAIR_TOOLS.includes(tool)
+      ? tool === 'erase'
+        ? 'cell'
+        : 'crosshair'
+      : 'default';
     canvas.skipTargetFind = tool === 'draw';
     canvas.requestRenderAll();
   }, [tool]);
@@ -151,6 +155,13 @@ const AnnotationLayer = forwardRef(function AnnotationLayer(
       const t = toolRef.current;
       const { x, y } = opt.scenePoint;
 
+      if (t === 'erase' && opt.target) {
+        canvas.remove(opt.target);
+        canvas.discardActiveObject();
+        canvas.requestRenderAll();
+        return;
+      }
+
       if (t === 'stamp' && stampUrlRef.current && !opt.target) {
         FabricImage.fromURL(stampUrlRef.current).then((img) => {
           const maxSide = 200;
@@ -177,7 +188,7 @@ const AnnotationLayer = forwardRef(function AnnotationLayer(
         return;
       }
 
-      if ((t === 'rect' || t === 'circle') && !opt.target) {
+      if ((t === 'rect' || t === 'circle' || t === 'line') && !opt.target) {
         drawingShape = true;
         origX = x;
         origY = y;
@@ -212,13 +223,21 @@ const AnnotationLayer = forwardRef(function AnnotationLayer(
             height: 0,
             ...shapeProps,
           });
-        } else {
+        } else if (t === 'circle') {
           shapeInProgress = new Ellipse({
             left: origX,
             top: origY,
             rx: 0,
             ry: 0,
             ...shapeProps,
+          });
+        } else {
+          shapeInProgress = new Line([origX, origY, origX, origY], {
+            fill: '',
+            stroke: ss.stroke,
+            strokeWidth: ss.strokeWidth,
+            strokeUniform: true,
+            ...drawingProps,
           });
         }
         canvas.add(shapeInProgress);
@@ -233,7 +252,10 @@ const AnnotationLayer = forwardRef(function AnnotationLayer(
       const h = Math.abs(y - origY);
       const left = Math.min(origX, x);
       const top = Math.min(origY, y);
-      if (shapeInProgress.type === 'ellipse') {
+      const ty = (shapeInProgress.type || '').toLowerCase();
+      if (ty === 'line') {
+        shapeInProgress.set({ x1: origX, y1: origY, x2: x, y2: y });
+      } else if (ty === 'ellipse') {
         shapeInProgress.set({ left, top, rx: w / 2, ry: h / 2 });
       } else {
         shapeInProgress.set({ left, top, width: w, height: h });
